@@ -22,6 +22,20 @@ def pick_files():
 
     return filenames
 
+def save_mne_recording(rec: Raw, filename: str, path: str, subfolder: str = None):
+    """
+    Save a given Tensor into an image file.
+    :param rec:
+    :param filename
+    :param path:
+    :param subfolder:
+    """
+    if subfolder is None:
+        rec.save(fname=f"{path}{filename}_raw.fif", overwrite=True, verbose=False)
+    else:
+        os.makedirs(os.path.join(path, subfolder), exist_ok=True)
+        rec.save(fname=f"{os.path.join(path, subfolder)}\\{filename}_raw.fif", overwrite=True, verbose=False)
+
 
 def load_recording(filename, path: str, subfolder: str = None, load_data: bool = False):
     """
@@ -56,19 +70,6 @@ def load_recording(filename, path: str, subfolder: str = None, load_data: bool =
     return rec
 
 
-def save_mne_recording(rec: Raw, filename: str, path: str, subfolder: str = None):
-    """
-    Save a given Tensor into an image file.
-    :param rec:
-    :param filename
-    :param path:
-    :param subfolder:
-    """
-    if subfolder is None:
-        rec.save(fname=f"{path}{filename}_raw.fif", overwrite=True, verbose=False)
-    else:
-        os.makedirs(os.path.join(path, subfolder), exist_ok=True)
-        rec.save(fname=f"{os.path.join(path, subfolder)}\\{filename}_raw.fif", overwrite=True, verbose=False)
 
 
 def channels_indices(rec: Raw, chs: [str]):
