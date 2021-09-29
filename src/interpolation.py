@@ -30,10 +30,10 @@ def interpolate_channels(inst: Raw, bad_chs, method='nearest', exclude=()):
 
     # Retrieving the 2D location of the channels on the template
     chs = [inst.info['chs'][i] for i in picks_nirs]
-    locs2d = np.array([ch['loc'][:2] for ch in chs])
+    locs2d_good = np.array([ch['loc'][:2] for ch in chs])
 
     # Initializing the distance function
-    dist = pdist(locs2d)
+    dist = pdist(locs2d_good)
     dist = squareform(dist)
 
     for i, bad in enumerate(picks_bad):
@@ -50,7 +50,8 @@ def interpolate_channels(inst: Raw, bad_chs, method='nearest', exclude=()):
             inst = univariate_interpolation(inst, bad, dists_to_bad, nirs_ch_names, bad_chs[i], method)
 
         if method == 'bicubic':
-            inst = bicubic_interpolation(inst, picks_nirs, picks_bad, bad_chs[i])
+            locs2d_bad = inst.info['chs'][i]['loc'][:2]
+            inst = bicubic_interpolation(inst, picks_nirs, picks_bad, locs2d_good, locs2d_bad, bad_chs[i])
 
         inst.info['bads'] = [ch for ch in inst.info['bads'] if ch in exclude]
 
@@ -100,18 +101,11 @@ def univariate_interpolation(inst, bad, dists_to_bad, nirs_ch_names, bad_ch, met
     return inst
 
 
-def bicubic_interpolation(inst, picks_nirs, picks_bad, bad_ch):
+def bicubic_interpolation(inst, picks_nirs, picks_bad, locs2d_good, locs2d_bad, bad_ch):
     """
 
     :return:
     """
-    # Retrieving the list of good channels
-    picks_good = [pick for pick in picks_nirs if pick not in picks_bad]
-    chs_good = [inst.info['chs'][k] for k in picks_good]
-
-    # Retrieving 2D location for good and bad channels
-    locs2d_good = np.array([ch['loc'][:2] for ch in chs_good])
-    loc2d_bad = inst.info['chs'][i]['loc'][:2]
 
     # Setting up the available the 2D coordinates for interpolation
     x = [x1 for x1, _ in locs2d_good]
@@ -120,9 +114,9 @@ def bicubic_interpolation(inst, picks_nirs, picks_bad, bad_ch):
 
     # Setting up the complete list of coordinates with the channels to interpolate
     x_new = x.copy()
-    x_new.append(loc2d_bad[0])
+    x_new.append(locs2d_bad[0])
     y_new = y.copy()
-    y_new.append(loc2d_bad[1])
+    y_new.append(locs2d_bad[1])
 
     z_interp = []
 
@@ -133,7 +127,7 @@ def bicubic_interpolation(inst, picks_nirs, picks_bad, bad_ch):
             z = data[:, k]
             # Performing interpolation
             f2d = interpolate.interp2d(x, y, z, kind='cubic')
-            interp_value = f2d(loc2d_bad[0], loc2d_bad[1])[0]
+            interp_value = f2d(locs2d_bad[0], locs2d_bad[1])[0]
 
             if interp_value > 1.0 or interp_value < -1.0:
                 # Saving the points that produce sharp peaks
