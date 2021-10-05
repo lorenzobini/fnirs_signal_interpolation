@@ -101,7 +101,7 @@ def univariate_interpolation(inst, bad, dists_to_bad, nirs_ch_names, bad_ch, met
     return inst
 
 
-def bicubic_interpolation(inst, picks_nirs, picks_bad, locs2d_good, locs2d_bad, bad_ch):
+def bicubic_interpolation(inst, picks_good, locs2d_good, locs2d_bad, bad_ch):
     """
 
     :return:
