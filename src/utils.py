@@ -58,7 +58,7 @@ def load_recording(filename, path: str, subfolder: str = None, load_data: bool =
 
 def save_mne_recording(rec: Raw, filename: str, path: str, subfolder: str = None):
     """
-    Save a given Tensor into an image file.
+    Save a given Raw file to disk.
     :param rec:
     :param filename
     :param path:
