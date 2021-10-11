@@ -7,16 +7,14 @@ import numpy as np
 
 def pick_files():
     """
-    It opens a file picker window and lets the user choose a .MAT, .OXY3 or .OXY4 file to import.
+    It opens a file picker window and lets the user choose a .FIF file to import.
     :return dat: loaded .mat file
     :raises FileNotFoundError
     :raises IOError
     """
     root = Tk()
     filenames = askopenfilenames(initialdir=os.path.join(os.getcwd(), 'data') + os.sep,
-                                 filetypes=(("MAT files", "*.mat"),
-                                            ("OXY3 files", "*.oxy3"),
-                                            ("OXY4 files", "*.oxy4"),
+                                 filetypes=(("FIF files", "*.fif"),
                                             ("All Files", "*.*")),
                                  title="Choose a file to import.")
     root.destroy()
