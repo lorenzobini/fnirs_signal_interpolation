@@ -5,9 +5,17 @@ from interpolation import interpolate_channels
 
 
 def main():
+    global filepath
     files = pick_files()
     for file in files:
         recording = load_recording(file)
+
+        # ## RETRIEVING LIST OF CHANNELS TO EXCLUDE
+        chs_to_exclude = read_channels_list(filepath, filename="channels_to_exclude.txt")
+
+        if chs_to_exclude:
+            chs_to_exclude = append_hbohbr(chs_to_exclude)
+            recording = discard_channels(recording, chs_to_exclude)
 
         # ## NORMALIZING DATA
         recording = recording.copy().apply_function(fun=normalize,
@@ -15,7 +23,7 @@ def main():
                                                     channel_wise=True)
 
         # ## RETRIEVING LIST OF CHANNELS TO INTERPOLATE
-        chs_to_interpolate = read_channels_to_interpolate()
+        chs_to_interpolate = read_channels_list(filepath, filename="channels_to_interpolate.txt")
         chs_to_interpolate = append_hbohbr(chs_to_interpolate)
 
 

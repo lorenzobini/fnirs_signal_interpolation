@@ -70,7 +70,7 @@ def save_recording(rec: Raw, filename: str, path: str, subfolder: str = None):
         rec.save(fname=f"{os.path.join(path, subfolder)}\\{filename}_raw.fif", overwrite=True, verbose=False)
 
 
-def read_channels_to_interpolate(path=c.CONFIG_PATH, filename="channels_to_interpolate.txt"):
+def read_channels_list(path, filename="channels_to_interpolate.txt"):
     """
     Reads list of channels to interpolate from file.
     :param path: the path leading to the file
@@ -148,3 +148,26 @@ def channels_indices(rec: Raw, chs: [str]):
         chs_indices.append(ch_index)
 
     return chs_indices
+
+
+def discard_channels(rec, exc_chs):
+    """
+    Discards the received channels from the set of recordings.
+    :param rec: the fNIRS recording
+    :param exc_chs: the list of channels to exclude
+    :return: the recording minus the discarded channels
+    """
+    # Checking if all received channels are actually present in the recording
+    channels = rec.info.ch_names
+    mismatches = np.setdiff1d(exc_chs, channels)
+    # Removing possible channels that are not present in the recording
+    for mismatch in mismatches: exc_chs.remove(mismatch)
+
+    # Removing channels from recordings
+    try:
+        rec.drop_channels(exc_chs)
+    except:
+        UserWarning("Function drop_channels was unsuccessful.")
+
+    return rec
+
