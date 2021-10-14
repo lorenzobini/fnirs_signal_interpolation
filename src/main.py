@@ -53,3 +53,6 @@ if __name__ == "__main__":
         f = open(os.path.isfile(filepath + "channels_to_exclude"), "w+")
         f.close()
         ImportError("The file channels_to_exclude.txt did not exist. An empty file has been created. Please specify eventual channels to ignore to avoid errors.")
+
+    main()
+

@@ -3,6 +3,10 @@ import os
 from tkinter import *
 from tkinter.filedialog import askopenfilenames
 import numpy as np
+import re
+import itertools
+import random
+from collections import defaultdict
 
 
 def pick_files():
@@ -170,4 +174,63 @@ def discard_channels(rec, exc_chs):
         UserWarning("Function drop_channels was unsuccessful.")
 
     return rec
+
+
+def generate_lr_combinations(rec, max: int = None):
+    """
+    Given a high-resolution recording, determines all possible combinations of channels to remove
+    given the rule of one channel per transmitter.
+    :param rec: the high resolution recording
+    :param max: the maximum number of low-resolution samples to return from one recording
+    :return: the list of possible combinations of channels to remove
+    """
+    channels = rec.info.ch_names
+    bad_tr, bad_chs, bad_reps = isolate_bads(rec)
+
+    chs = defaultdict(lambda: None)
+    for ch in channels:
+        try:
+            # Obtaining the channel's transmitter
+            tr = re.search(r"(S\d+[ab-d]?)", ch).group(0)
+            # Obtaining channels associated with each transmitter
+            ch_name = re.search(r"(S\d+[ab-d]?_D\d+[ab-d]?)", ch).group(0)
+
+            if tr in bad_tr:
+                continue
+
+            if chs[tr] is None:
+                # Creating first element in the list of channels linked to the transmitter
+                chs[tr] = [ch_name]
+            elif ch_name not in chs[tr]:
+                # Populating the list of channels linked to the transmitter
+                chs[tr].append(ch_name)
+        except AttributeError:
+            UserWarning(f"Channel name {ch} is not formatted correctly.")
+
+    # Converting dict to list
+    ch_list = []
+    for _, value in chs.items():
+        ch_list.append(list(value))
+
+    # Randomly removing as many transmitters as the number of extra-bad-channels-per-transmitter has been found
+    # This ensures that the LR recording always has 26 channels also when a bad transmitter is responsible for more
+    # than one bad channel.
+    for i in range(0, bad_reps):
+        random_item_from_list = random.choice(ch_list)
+        ch_list.remove(random_item_from_list)
+
+    # Selecting all possible combinations of channels
+    ch_list = list(itertools.product(*ch_list))
+
+    # Including the bad channels as channels to remove for every LR recording
+    bad_chs = tuple(bad_chs)
+    ch_list = [i + bad_chs for i in ch_list]
+
+    # Limit the total number of combinations
+    if max is not None and max < len(ch_list):
+        ch_list = list(random.choices(ch_list, k=max))
+
+    ch_list = [list(i) for i in ch_list]
+
+    return ch_list
 
