@@ -12,7 +12,9 @@ from collections import defaultdict
 def pick_files():
     """
     It opens a file picker window and lets the user choose a .FIF file to import.
-    :return dat: loaded .mat file
+
+    :return dat: loaded .FIF file
+
     :raises FileNotFoundError
     :raises IOError
     """
@@ -30,10 +32,12 @@ def load_recording(filename, path: str, subfolder: str = None, load_data: bool =
     """
     Loads the MNE raw signal object from a specified .fif file without loading the data, unless specified.
     To load the data at a later time make use of the load_data() built-in function from MNE.
+
     :param filename: the name of the .fif file to load
     :param path: the directory where the file is located
     :param subfolder: the subfolder, can be also inputted via the path
     :param load_data: if True loads the whole recording in memory, requires more RAM
+
     :return: the loaded recording in Raw format
     """
 
@@ -62,10 +66,11 @@ def load_recording(filename, path: str, subfolder: str = None, load_data: bool =
 def save_recording(rec: Raw, filename: str, path: str, subfolder: str = None):
     """
     Save a given Raw file to disk.
-    :param rec:
-    :param filename
-    :param path:
-    :param subfolder:
+
+    :param rec: the fNIRS recording
+    :param filename: the name to assign to the saved file
+    :param path: the directory in which to save the recording
+    :param subfolder: subfolder to append to the path (optional)
     """
     if subfolder is None:
         rec.save(fname=f"{path}{filename}_raw.fif", overwrite=True, verbose=False)
@@ -77,8 +82,10 @@ def save_recording(rec: Raw, filename: str, path: str, subfolder: str = None):
 def read_channels_list(path, filename="channels_to_interpolate.txt"):
     """
     Reads list of channels to interpolate from file.
+
     :param path: the path leading to the file
     :param filename: the file name
+
     :return: the list of channels to interpolate
     """
     channels = []
@@ -101,7 +108,9 @@ def read_channels_list(path, filename="channels_to_interpolate.txt"):
 def normalize(signal):
     """
     Normalizes the signal to a normal distribution of mean 0 and standard deviation 1
+
     :param signal: the time series of a channel
+
     :return: the normalised fNIRS recording
     """
     if max(signal) == min(signal):
@@ -118,7 +127,9 @@ def normalize(signal):
 def append_hbohbr(chs, values=False):
     """
     Creates a list of channels with the HBO/HBR notation from a list of channels without HBO/HBR notation.
+
     :param chs: the list of channels without notation
+
     :return: the list of channels with HBO/HBR notation
     """
     ch_names_hbohbr = []
@@ -138,9 +149,11 @@ def append_hbohbr(chs, values=False):
 def channels_indices(rec: Raw, chs: [str]):
     """
     Determines the indices of the given channels within the recording object
-    :param rec:
-    :param chs:
-    :return:
+
+    :param rec: the fNIRS recording
+    :param chs: the list of channels to locate
+
+    :return: the list of indices associated to the provided channels
     """
     chs_indices = []
     rec_df = rec.copy().to_data_frame()
@@ -154,11 +167,13 @@ def channels_indices(rec: Raw, chs: [str]):
     return chs_indices
 
 
-def discard_channels(rec, exc_chs):
+def discard_channels(rec: Raw, exc_chs: [str]):
     """
     Discards the received channels from the set of recordings.
+
     :param rec: the fNIRS recording
     :param exc_chs: the list of channels to exclude
+
     :return: the recording minus the discarded channels
     """
     # Checking if all received channels are actually present in the recording
@@ -175,13 +190,15 @@ def discard_channels(rec, exc_chs):
 
     return rec
 
-
-def generate_lr_combinations(rec, max: int = None):
+# TODO: modify to generate just one random combination
+def generate_lr_combinations(rec: Raw, max: int = None):
     """
     Given a high-resolution recording, determines all possible combinations of channels to remove
     given the rule of one channel per transmitter.
+
     :param rec: the high resolution recording
     :param max: the maximum number of low-resolution samples to return from one recording
+
     :return: the list of possible combinations of channels to remove
     """
     channels = rec.info.ch_names
@@ -234,3 +251,41 @@ def generate_lr_combinations(rec, max: int = None):
 
     return ch_list
 
+
+def isolate_bads(rec):
+    """
+    Isolates the list of bad channels and respective transmitters
+    :param rec: the fNIRS recording
+    :return: the list of bad channels
+    :return: the list of transmitters associated to bad channels
+    :return: the number of bad channels that fall outside the 1-channel-per-transmitter rule, which indicates how many
+             "good" transmitters to ignore from the computation to produce a 26-channels LR recording
+    """
+    channels = rec.info['bads']
+
+    chs = defaultdict(lambda: None)
+    for ch in channels:
+        try:
+            # Obtaining the bad channel's transmitter
+            tr = re.search(r"(S\d+[ab-d]?)", ch).group(0)
+            # Obtaining bad channels associated with each transmitter
+            ch_name = re.search(r"(S\d+[ab-d]?_D\d+[ab-d]?)", ch).group(0)
+
+            if chs[tr] is None:
+                # Creating first element in the list of bad channels linked to the transmitter
+                chs[tr] = [ch_name]
+            elif ch_name not in chs[tr]:
+                # Populating the list of bad channels linked to the transmitter
+                chs[tr].append(ch_name)
+        except AttributeError:
+            UserWarning(f"Channel name {ch} is not formatted correctly.")
+
+    ch_list = []  # The list of bad channels
+    tr_list = []  # The list of transmitters associated to bad channels
+    reps = 0      # The number of bad channels that fall outside the 1-channel-per-transmitter rule
+    for transmitter, channels in chs.items():
+        tr_list.append(transmitter)
+        ch_list.extend(channels)
+        reps += len(channels) - 1
+
+    return tr_list, ch_list, reps

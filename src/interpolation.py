@@ -12,10 +12,12 @@ def interpolate_channels(signal: Raw, bad_chs, method='nearest', exclude=()):
     # The original function was implemented as part of the MNE-Nirs library
     # The nearest-neighbor interpolation has been adapted from the original source code
     # The quadratic, cubic and bicubic interpolation have been implemented in the current version
+
     :param signal: the fNIRS recording
     :param method: the distance method that will be used
     :param bad_chs: the list of channels to interpolate
     :param exclude: the list of channels to exclude
+
     :return: the fNIRS recording with the bad channels interpolated
     """
     if len(bad_chs) == 0:
@@ -36,18 +38,18 @@ def interpolate_channels(signal: Raw, bad_chs, method='nearest', exclude=()):
     dist = pdist(locs2d_good)
     dist = squareform(dist)
 
-    for i, bad in enumerate(bad_channels):
-        dists_to_bad = dist[bad]
+    for i, bad_channel in enumerate(bad_channels):
+        distances = dist[bad_channel]
         # Ignore distances to self
-        dists_to_bad[dists_to_bad == 0] = np.inf
+        distances[distances == 0] = np.inf
         # Ignore distances to other bad channels
-        dists_to_bad[bad_channels] = np.inf
+        distances[bad_channels] = np.inf
 
         if method == 'nearest':
-            signal = nearest_neighbour(signal, dists_to_bad, bad, channel_names, bad_chs[i])
+            signal = nearest_neighbour(signal, bad_channel, bad_chs[i], distances, channel_names)
 
         if method in ['linear', 'cubic', 'quadratic']:
-            signal = univariate_interpolation(signal, bad_chs[i], bad, dists_to_bad, channel_names, method)
+            signal = univariate_interpolation(signal, bad_channel, bad_chs[i], distances, channel_names, method)
 
         if method in ['bilinear', 'bicubic', 'quintic']:
             locs2d_bad = signal.info['chs'][i]['loc'][:2]
@@ -58,45 +60,53 @@ def interpolate_channels(signal: Raw, bad_chs, method='nearest', exclude=()):
     return signal
 
 
-def nearest_neighbour(inst, dists_to_bad, bad, nirs_ch_names, bad_ch):
+def nearest_neighbour(signal, channel_to_interpolate, channel_id, dists_to_channels, channel_names):
     """
+    Performs nearest neighbour interpolation. The signal belonging to closest good channel in the 2-dimensional space
+    is copy-pasted onto the channel to interpolate.
 
-    :param inst:
-    :param dists_to_bad:
-    :param bad:
-    :param nirs_ch_names:
-    :param bad_ch:
-    :return:
-    """
-    # Find closest remaining channels for same frequency
-    closest_idx = np.argmin(dists_to_bad) + (bad % 2)
-    inst.apply_function(lambda a1: np.squeeze(inst.get_data(nirs_ch_names[closest_idx])),
-                        bad_ch,
-                        channel_wise=True)
+    :param signal: the fNIRS recording
+    :param channel_to_interpolate: the bad channel to interpolate
+    :param channel_id: the ID of the channel to interpolate
+    :param dists_to_channels: the distances between the channel to interpolate and the surrounding channels
+    :param channel_names: the list of channels in the fNIRS recording
 
-    return inst
-
-
-def univariate_interpolation(signal, bad_channel, bad_channel_id, dists_to_bad, channel_names,  method):
-    """
-
-    :param signal:
-    :param bad_channel:
-    :param bad_channel_id:
-    :param dists_to_bad:
-    :param channel_names:
-    :param method:
-    :return:
+    :return: the fNIRS recording with the specified channel interpolated
     """
     # Find closest remaining channels for same frequency
-    closest_idx_1, _, closest_idx_2, _ = np.argpartition(dists_to_bad, 1)[0:4]
-    closest_idx_1 += bad_channel_id % 2
-    closest_idx_2 += bad_channel_id % 2
+    closest_idx = np.argmin(dists_to_channels) + (channel_id % 2)
+    signal.apply_function(lambda a1: np.squeeze(signal.get_data(channel_names[closest_idx])),
+                          channel_to_interpolate,
+                          channel_wise=True)
+
+    return signal
+
+
+def univariate_interpolation(signal, channel_to_interpolate, channel_id, dists_to_channels, channel_names,
+                             method="cubic", sampling_rate=0.02):
+    """
+    Performs unidimensional interpolation by sampling and averaging equidistant points from the two-closest high quality
+    channels. The function supports "linear" "quadratic" and "cubic" interpolation methods.
+
+    :param signal: the fNIRS recording
+    :param channel_to_interpolate: the bad channel to interpolate
+    :param channel_id: the ID of the channel to interpolate
+    :param dists_to_channels: the distances between the channel to interpolate and the surrounding channels
+    :param channel_names: the list of channels in the fNIRS recording
+    :param method: the interpolation method. The supported methods are "linear", "quadratic", "cubic". Default: "cubic"
+    :param sampling_rate: the sampling rate for the sample points. Default: 0.02
+
+    :return: the fNIRS recording with the specified channel interpolated
+    """
+    # Find closest remaining channels for same frequency
+    closest_idx_1, _, closest_idx_2, _ = np.argpartition(dists_to_channels, 1)[0:4]
+    closest_idx_1 += channel_id % 2
+    closest_idx_2 += channel_id % 2
 
     # Sampling
     upper_limit = signal.n_times
 
-    x = np.arange(0, upper_limit, np.floor(upper_limit * 0.02), dtype=int)
+    x = np.arange(0, upper_limit, np.floor(upper_limit * sampling_rate), dtype=int)
     x_new = np.arange(0, upper_limit, dtype=int)
 
     y = np.mean([np.squeeze(signal.get_data(channel_names[closest_idx_1]))[x],
@@ -107,34 +117,38 @@ def univariate_interpolation(signal, bad_channel, bad_channel_id, dists_to_bad, 
 
     # y array that contains the interpolated data points
     y_interp = f1d(x_new)
-    signal.apply_function(lambda a1: y_interp, bad_channel, channel_wise=True)
+    signal.apply_function(lambda a1: y_interp, channel_to_interpolate, channel_wise=True)
 
     return signal
 
 
-def bivariate_interpolation(signal, good_channels, locs2d_good, locs2d_bad, bad_ch, method):
+def bivariate_interpolation(signal, good_channels, locs2d_good, loc2d_bad, bad_ch, method):
     """
-    :param signal:
-    :param good_channels:
-    :param locs2d_good:
-    :param locs2d_bad:
-    :param bad_ch:
-    :param linear:
-    :return:
+    Performs bidimensional interpolation in the two-dimensional space. The function supports "bilinear" "bicubic" and
+    "quintic" interpolation methods.
+
+    :param signal: the fNIRS recording
+    :param good_channels: the list of high-quality channels
+    :param locs2d_good: the list of 2D locations for the high-quality channels
+    :param loc2d_bad: the 2D location of the low-quality channel to interpolate
+    :param bad_ch: the low-quality channel to interpolate
+    :param method: the interpolation method. The supported methods are "bilinear", "bicubic", "quintic". Default: "cubic"
+
+    :return: the fNIRS recording with the specified channel interpolated
     """
 
     # Setting up the available the 2D coordinates for interpolation
     x = [x1 for x1, _ in locs2d_good]
     y = [y1 for _, y1 in locs2d_good]
 
-    # Extracting the signal
+    # Extracting the high quality signal
     data = np.squeeze(signal.get_data(good_channels))
 
     # Setting up the complete list of coordinates with the channels to interpolate
     x_new = x.copy()
-    x_new.append(locs2d_bad[0])
+    x_new.append(loc2d_bad[0])
     y_new = y.copy()
-    y_new.append(locs2d_bad[1])
+    y_new.append(loc2d_bad[1])
 
     z_interp = []
 
@@ -145,7 +159,7 @@ def bivariate_interpolation(signal, good_channels, locs2d_good, locs2d_bad, bad_
             z = data[:, k]
             # Performing interpolation
             f2d = interpolate.interp2d(x, y, z, kind=method)
-            interp_value = f2d(locs2d_bad[0], locs2d_bad[1])[0]
+            interp_value = f2d(loc2d_bad[0], loc2d_bad[1])[0]
 
             if interp_value > 1.0 or interp_value < -1.0:
                 # Saving the points that produce sharp peaks
