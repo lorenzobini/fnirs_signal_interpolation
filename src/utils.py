@@ -190,16 +190,15 @@ def discard_channels(rec: Raw, exc_chs: [str]):
 
     return rec
 
-# TODO: modify to generate just one random combination
-def generate_lr_combinations(rec: Raw, max: int = None):
+
+def sample_channels_to_interpolate(rec: Raw):
     """
-    Given a high-resolution recording, determines all possible combinations of channels to remove
-    given the rule of one channel per transmitter.
+    Given a high-resolution recording, returns a list of random channels to remove. The function applies the
+    rule of one channel per transmitter.
 
     :param rec: the high resolution recording
-    :param max: the maximum number of low-resolution samples to return from one recording
 
-    :return: the list of possible combinations of channels to remove
+    :return: the list of channels to remove
     """
     channels = rec.info.ch_names
     bad_tr, bad_chs, bad_reps = isolate_bads(rec)
@@ -214,7 +213,6 @@ def generate_lr_combinations(rec: Raw, max: int = None):
 
             if tr in bad_tr:
                 continue
-
             if chs[tr] is None:
                 # Creating first element in the list of channels linked to the transmitter
                 chs[tr] = [ch_name]
@@ -230,8 +228,7 @@ def generate_lr_combinations(rec: Raw, max: int = None):
         ch_list.append(list(value))
 
     # Randomly removing as many transmitters as the number of extra-bad-channels-per-transmitter has been found
-    # This ensures that the LR recording always has 26 channels also when a bad transmitter is responsible for more
-    # than one bad channel.
+    # This prevents the removal of too many channels when having several bad channels in the recording.
     for i in range(0, bad_reps):
         random_item_from_list = random.choice(ch_list)
         ch_list.remove(random_item_from_list)
@@ -243,11 +240,8 @@ def generate_lr_combinations(rec: Raw, max: int = None):
     bad_chs = tuple(bad_chs)
     ch_list = [i + bad_chs for i in ch_list]
 
-    # Limit the total number of combinations
-    if max is not None and max < len(ch_list):
-        ch_list = list(random.choices(ch_list, k=max))
-
-    ch_list = [list(i) for i in ch_list]
+    ch_list = list(random.choices(ch_list, k=1))
+    ch_list = [list(i) for i in ch_list][0]
 
     return ch_list
 
